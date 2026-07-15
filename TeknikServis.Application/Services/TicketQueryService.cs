@@ -68,8 +68,10 @@ public class TicketQueryService : ITicketQueryService
                 t.Title,
                 t.Status,
                 t.Priority,
-                t.Customer.FullName,
-                t.AssignedTechnician != null ? t.AssignedTechnician.FullName : null,
+                t.Customer.FirstName + " " + t.Customer.LastName,
+                t.AssignedTechnician != null
+                    ? t.AssignedTechnician.FirstName + " " + t.AssignedTechnician.LastName
+                    : null,
                 t.SlaDeadline,
                 t.CreatedAt))
             .ToListAsync(ct);
@@ -77,6 +79,9 @@ public class TicketQueryService : ITicketQueryService
         return new PagedResult<TicketListItemResponse>(items, p.Page, p.PageSize, totalCount);
     }
 
+    // Siralama alanlari bilincli olarak whitelist'li bir switch ile eslestiriliyor.
+    // Istemciden gelen SortBy string'i hicbir sekilde dinamik LINQ/SQL ifadesine
+    // donusturulmuyor: bilinmeyen deger sessizce varsayilana duser, injection yuzeyi olusmaz.
     private static IQueryable<ServiceTicket> ApplySorting(
         IQueryable<ServiceTicket> query, TicketQueryParameters p)
     {
@@ -92,3 +97,4 @@ public class TicketQueryService : ITicketQueryService
         };
     }
 }
+

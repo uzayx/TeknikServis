@@ -7,7 +7,8 @@ public class CreateCustomerRequestValidator : AbstractValidator<CreateCustomerRe
 {
     public CreateCustomerRequestValidator()
     {
-        RuleFor(x => x.FullName).NotEmpty().MaximumLength(150);
+        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(150);
         RuleFor(x => x.Phone).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Address).MaximumLength(500);
@@ -18,7 +19,8 @@ public class CreateTechnicianRequestValidator : AbstractValidator<CreateTechnici
 {
     public CreateTechnicianRequestValidator()
     {
-        RuleFor(x => x.FullName).NotEmpty().MaximumLength(150);
+        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(150);
         RuleFor(x => x.Phone).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Specialty).MaximumLength(100);

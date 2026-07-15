@@ -11,12 +11,14 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.ToTable("customers");
         builder.HasKey(c => c.Id);
 
-        builder.Property(c => c.FullName).IsRequired().HasMaxLength(150);
+        builder.Property(c => c.FirstName).IsRequired().HasMaxLength(100);
+        builder.Property(c => c.LastName).IsRequired().HasMaxLength(100);
         builder.Property(c => c.Email).IsRequired().HasMaxLength(150);
         builder.Property(c => c.Phone).IsRequired().HasMaxLength(20);
         builder.Property(c => c.Address).HasMaxLength(500);
         builder.Property(c => c.CreatedAt).IsRequired();
 
         builder.HasIndex(c => c.Email).IsUnique();
+        builder.HasIndex(c => c.LastName);
     }
 }

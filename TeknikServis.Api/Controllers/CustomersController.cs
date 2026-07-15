@@ -23,8 +23,8 @@ public class CustomersController : ControllerBase
     {
         var customers = await _db.Customers
             .AsNoTracking()
-            .OrderBy(c => c.FullName)
-            .Select(c => new CustomerResponse(c.Id, c.FullName, c.Email, c.Phone, c.Address, c.CreatedAt))
+            .OrderBy(c => c.LastName).ThenBy(c => c.FirstName)
+            .Select(c => new CustomerResponse(c.Id, c.FirstName, c.LastName, c.Email, c.Phone, c.Address, c.CreatedAt))
             .ToListAsync(ct);
         return Ok(customers);
     }
@@ -34,7 +34,7 @@ public class CustomersController : ControllerBase
     {
         var c = await _db.Customers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new NotFoundException(nameof(Customer), id);
-        return Ok(new CustomerResponse(c.Id, c.FullName, c.Email, c.Phone, c.Address, c.CreatedAt));
+        return Ok(new CustomerResponse(c.Id, c.FirstName, c.LastName, c.Email, c.Phone, c.Address, c.CreatedAt));
     }
 
     [HttpPost]
@@ -44,7 +44,8 @@ public class CustomersController : ControllerBase
         var customer = new Customer
         {
             Id = Guid.NewGuid(),
-            FullName = request.FullName,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
             Email = request.Email,
             Phone = request.Phone,
             Address = request.Address,
@@ -55,7 +56,7 @@ public class CustomersController : ControllerBase
         await _db.SaveChangesAsync(ct);
 
         var response = new CustomerResponse(
-            customer.Id, customer.FullName, customer.Email,
+            customer.Id, customer.FirstName, customer.LastName, customer.Email,
             customer.Phone, customer.Address, customer.CreatedAt);
         return CreatedAtAction(nameof(GetById), new { id = customer.Id }, response);
     }

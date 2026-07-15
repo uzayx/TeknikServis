@@ -1,5 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TeknikServis.Application.Common.Exceptions;
+using TeknikServis.Application.Common.Options;
 using TeknikServis.Application.Domain;
 using TeknikServis.Application.Domain.Entities;
 using TeknikServis.Application.Domain.Enums;
@@ -11,10 +13,12 @@ namespace TeknikServis.Application.Services;
 public class TicketService : ITicketService
 {
     private readonly IAppDbContext _db;
+    private readonly SlaOptions _slaOptions;
 
-    public TicketService(IAppDbContext db)
+    public TicketService(IAppDbContext db, IOptions<SlaOptions> slaOptions)
     {
         _db = db;
+        _slaOptions = slaOptions.Value;
     }
 
     public async Task<ServiceTicket> CreateAsync(CreateTicketRequest request, CancellationToken ct = default)
@@ -38,7 +42,12 @@ public class TicketService : ITicketService
             CreatedAt = now
         };
 
-        ticket.StatusHistories.Add(new TicketStatusHistory
+        _db.ServiceTickets.Add(ticket);
+
+        // Gecmis kayitlari navigation koleksiyonu yerine dogrudan DbSet uzerinden
+        // ekleniyor. Sebep: PK'si elle atanmis yeni bir nesne navigation'a eklendiginde
+        // EF, dolu key'i gorup kaydi Modified sayiyor ve INSERT yerine UPDATE uretiyor.
+        _db.TicketStatusHistories.Add(new TicketStatusHistory
         {
             Id = Guid.NewGuid(),
             ServiceTicketId = ticket.Id,
@@ -49,7 +58,6 @@ public class TicketService : ITicketService
             ChangedAt = now
         });
 
-        _db.ServiceTickets.Add(ticket);
         await _db.SaveChangesAsync(ct);
         return ticket;
     }
@@ -81,10 +89,12 @@ public class TicketService : ITicketService
             .FirstOrDefaultAsync(t => t.Id == request.TechnicianId, ct)
             ?? throw new NotFoundException(nameof(Technician), request.TechnicianId);
 
+        var technicianFullName = $"{technician.FirstName} {technician.LastName}";
+
         if (!technician.IsActive)
             throw new BusinessRuleException(
                 "TECHNICIAN_INACTIVE",
-                $"Teknisyen aktif degil: {technician.FullName}");
+                $"Teknisyen aktif degil: {technicianFullName}");
 
         if (ticket.AssignedTechnicianId == request.TechnicianId)
             throw new BusinessRuleException(
@@ -92,6 +102,9 @@ public class TicketService : ITicketService
                 "Bu teknisyen zaten bu kayda atanmis durumda.");
 
         var now = DateTime.UtcNow;
+
+        // Onceki teknisyen, degisiklik yazilmadan once yakalaniyor: case geregi
+        // teknisyen degisikliklerinin kimden kime yapildigi izlenebilmeli.
         var previousTechnicianId = ticket.AssignedTechnicianId;
         var isFirstAssignment = previousTechnicianId is null;
 
@@ -100,13 +113,15 @@ public class TicketService : ITicketService
 
         TicketStatus? fromStatus = null;
 
+        // Ilk atama, kaydi New'den Assigned'a otomatik tasiyor: "teknisyen atandi ama
+        // durum hala New" gibi tutarsiz bir ara durum olusmasini engelliyor.
         if (ticket.Status == TicketStatus.New)
         {
             fromStatus = ticket.Status;
             ticket.Status = TicketStatus.Assigned;
         }
 
-        ticket.StatusHistories.Add(new TicketStatusHistory
+        _db.TicketStatusHistories.Add(new TicketStatusHistory
         {
             Id = Guid.NewGuid(),
             ServiceTicketId = ticket.Id,
@@ -116,8 +131,8 @@ public class TicketService : ITicketService
             NewTechnicianId = technician.Id,
             ChangedByType = request.ChangedByType,
             Note = request.Note ?? (isFirstAssignment
-                ? $"Teknisyen atandi: {technician.FullName}"
-                : $"Teknisyen degistirildi: {technician.FullName}"),
+                ? $"Teknisyen atandi: {technicianFullName}"
+                : $"Teknisyen degistirildi: {technicianFullName}"),
             ChangedAt = now
         });
 
@@ -163,7 +178,7 @@ public class TicketService : ITicketService
                 break;
         }
 
-        ticket.StatusHistories.Add(new TicketStatusHistory
+        _db.TicketStatusHistories.Add(new TicketStatusHistory
         {
             Id = Guid.NewGuid(),
             ServiceTicketId = ticket.Id,
@@ -174,6 +189,9 @@ public class TicketService : ITicketService
             ChangedAt = now
         });
 
+        // Ticket guncellemesi ve gecmis kaydi tek SaveChanges cagrisinda gidiyor.
+        // EF Core tek SaveChanges'i zaten tek transaction icinde calistirdigi icin
+        // ayrica BeginTransaction acmaya gerek yok: ya ikisi de yazilir ya hicbiri.
         await _db.SaveChangesAsync(ct);
         return ticket;
     }
@@ -190,14 +208,19 @@ public class TicketService : ITicketService
                 $"'{ticket.Status}' durumundaki kayitlar duzenlenemez.");
     }
 
-    private static TimeSpan GetSlaDuration(TicketPriority priority) => priority switch
+    private TimeSpan GetSlaDuration(TicketPriority priority) => priority switch
     {
-        TicketPriority.Critical => TimeSpan.FromHours(4),
-        TicketPriority.High => TimeSpan.FromHours(8),
-        TicketPriority.Medium => TimeSpan.FromHours(24),
-        _ => TimeSpan.FromHours(72)
+        TicketPriority.Critical => TimeSpan.FromHours(_slaOptions.CriticalHours),
+        TicketPriority.High => TimeSpan.FromHours(_slaOptions.HighHours),
+        TicketPriority.Medium => TimeSpan.FromHours(_slaOptions.MediumHours),
+        _ => TimeSpan.FromHours(_slaOptions.LowHours)
     };
 
+    // Insan tarafindan okunabilir kayit numarasi: musteri telefonda GUID degil
+    // bu numarayi soyler. Sirali sayac yerine tarih + rastgele son ek kullaniliyor;
+    // sayac esZamanli isteklerde race condition yaratir, benzersizlik zaten
+    // veritabanindaki unique index ile garanti altinda.
     private static string GenerateTicketNumber(DateTime utcNow)
         => $"TS-{utcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
 }
+

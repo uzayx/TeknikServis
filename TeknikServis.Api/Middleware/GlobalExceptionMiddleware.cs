@@ -33,7 +33,7 @@ public class GlobalExceptionMiddleware
         {
             NotFoundException => (StatusCodes.Status404NotFound, "Kayit bulunamadi", "NOT_FOUND"),
             BusinessRuleException bre => (StatusCodes.Status409Conflict, "Is kurali ihlali", bre.ErrorCode),
-            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Eszamanlilik cakismasi", "CONCURRENCY_CONFLICT"),
+            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Eszamanli guncelleme cakismasi", "CONCURRENCY_CONFLICT"),
             DbUpdateException => (StatusCodes.Status409Conflict, "Veri butunlugu ihlali", "DATA_INTEGRITY_VIOLATION"),
             _ => (StatusCodes.Status500InternalServerError, "Beklenmeyen hata", "INTERNAL_ERROR")
         };

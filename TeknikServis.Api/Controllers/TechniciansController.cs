@@ -23,8 +23,8 @@ public class TechniciansController : ControllerBase
     {
         var technicians = await _db.Technicians
             .AsNoTracking()
-            .OrderBy(t => t.FullName)
-            .Select(t => new TechnicianResponse(t.Id, t.FullName, t.Email, t.Phone, t.Specialty, t.IsActive, t.CreatedAt))
+            .OrderBy(t => t.LastName).ThenBy(t => t.FirstName)
+            .Select(t => new TechnicianResponse(t.Id, t.FirstName, t.LastName, t.Email, t.Phone, t.Specialty, t.IsActive, t.CreatedAt))
             .ToListAsync(ct);
         return Ok(technicians);
     }
@@ -34,7 +34,7 @@ public class TechniciansController : ControllerBase
     {
         var t = await _db.Technicians.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new NotFoundException(nameof(Technician), id);
-        return Ok(new TechnicianResponse(t.Id, t.FullName, t.Email, t.Phone, t.Specialty, t.IsActive, t.CreatedAt));
+        return Ok(new TechnicianResponse(t.Id, t.FirstName, t.LastName, t.Email, t.Phone, t.Specialty, t.IsActive, t.CreatedAt));
     }
 
     [HttpPost]
@@ -44,7 +44,8 @@ public class TechniciansController : ControllerBase
         var technician = new Technician
         {
             Id = Guid.NewGuid(),
-            FullName = request.FullName,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
             Email = request.Email,
             Phone = request.Phone,
             Specialty = request.Specialty,
@@ -56,7 +57,7 @@ public class TechniciansController : ControllerBase
         await _db.SaveChangesAsync(ct);
 
         var response = new TechnicianResponse(
-            technician.Id, technician.FullName, technician.Email,
+            technician.Id, technician.FirstName, technician.LastName, technician.Email,
             technician.Phone, technician.Specialty, technician.IsActive, technician.CreatedAt);
         return CreatedAtAction(nameof(GetById), new { id = technician.Id }, response);
     }

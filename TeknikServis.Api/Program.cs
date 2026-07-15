@@ -1,9 +1,11 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Reflection;
+using System.Text.Json.Serialization;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using TeknikServis.Api.Middleware;
 using TeknikServis.Application;
+using TeknikServis.Application.Common.Options;
 using TeknikServis.Infrastructure;
 using TeknikServis.Infrastructure.Persistence;
 
@@ -18,6 +20,8 @@ builder.Services.AddControllers()
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssembly(typeof(TeknikServis.Application.DependencyInjection).Assembly);
 
+builder.Services.Configure<SlaOptions>(builder.Configuration.GetSection(SlaOptions.SectionName));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -25,12 +29,21 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Teknik Servis Yonetim API",
         Version = "v1",
-        Description = "Teknik servis ariza kaydi yonetim sistemi REST API"
+        Description = "Teknik servis ariza kaydi yonetim sistemi REST API.\n\n" +
+                      "Durum akisi: New -> Assigned -> InProgress -> Completed -> Approved -> Closed\n" +
+                      "Geriye donus ve adim atlama engellidir. Approved/Closed kayitlar duzenlenemez."
     });
+
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
 });
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());
 
 builder.Services.AddCors(options =>
 {
