@@ -19,6 +19,28 @@
     networks:
       - teknikservis-network
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: teknikservis-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development          # Swagger acik kalsin (case study)
+      # Container aginda "localhost" container'in kendisidir; Postgres'e
+      # compose servis adiyla (postgres) ve IC port (5432) ile ulasilir.
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=teknikservis_db;Username=teknikservis;Password=TeknikServis2026!;Include Error Detail=true"
+      # Ilk acilista semayi otomatik kurar. Uretimde bu is pipeline'da yapilir
+      # (coklu instance ayni anda migrate etmeye calisirsa yaris olusur).
+      Database__ApplyMigrationsOnStartup: "true"
+    ports:
+      - "5062:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - teknikservis-network
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: teknikservis-pgadmin

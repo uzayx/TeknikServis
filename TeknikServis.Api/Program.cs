@@ -55,6 +55,17 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Container ortaminda ilk acilista semayi kurar (compose: Database__ApplyMigrationsOnStartup=true).
+// Lokal gelistirmede kapali; sema "dotnet ef database update" ile yonetilir.
+// Uretim notu: migration startup'ta degil deployment pipeline'inda uygulanmalidir --
+// ayni anda acilan birden cok instance migrate yarisina girer.
+if (app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -81,3 +92,4 @@ app.MapGet("/health/db", async (AppDbContext db) =>
 });
 
 app.Run();
+

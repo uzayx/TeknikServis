@@ -1,0 +1,12 @@
+﻿**/bin/
+**/obj/
+**/.vs/
+**/node_modules/
+mobile/
+docs/
+sql/
+scripts/
+*.md
+.git/
+.gitignore
+docker-compose.yml
