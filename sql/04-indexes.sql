@@ -3,46 +3,45 @@
 -- Gerekceler ve EXPLAIN ANALYZE olcumleri: sql/03-indexes.md
 --
 -- Kullanim: 01-seed.sql calistirildiktan sonra uygulanir.
--- Uretimde CONCURRENTLY ile olusturulmalidir (tablo kilitlenmesin);
+-- Uretimde CREATE INDEX CONCURRENTLY tercih edilmelidir (tablo kilitlenmesin);
 -- bu script tek kullanicili gelistirme ortami icin yazilmistir.
+--
+-- NOT: Ucuncu bir aday (ix_tickets_active — partial index) degerlendirildi ve
+-- OLCUM SONUCU REDDEDILDI: tek basina calisiyor (cost 11.30) ancak asagidaki
+-- covering index varken planlayici ona donup bakmiyor (cost 3.85). Detay ve
+-- planlar icin 03-indexes.md.
 -- ============================================================
 
--- ---------- Oneri 1: Partial index — aktif kayitlar ----------
--- Hedef: operasyon ekrani, "en acil aktif kayitlar" listesi.
--- Olculen kazanc: Seq Scan+Sort -> Index Scan, cost 287.20 -> 0.28 (startup),
--- buffers 144 -> 52, exec 0.874ms -> 0.166ms.
--- NOT: Window function iceren sorgularda etkisizdir (bkz. 03-indexes.md).
-DROP INDEX IF EXISTS ix_tickets_active;
-CREATE INDEX ix_tickets_active
-ON service_tickets ("SlaDeadline")
-WHERE "Status" NOT IN (4, 5);
-
--- ---------- Oneri 2: Covering index — SLA ihlal taramasi ----------
--- Hedef: Sorgu 2A / 2B.
--- Olculen kazanc: Seq Scan+Sort -> Index Only Scan (Heap Fetches: 0),
--- buffers 144 -> 3, exec 1.031ms -> 0.102ms.
+-- ---------- Oneri 1: Covering index — SLA taramasi ve aktif kayit listeleri ----------
+-- Hedef: Sorgu 2A / 2B (SLA ihlalleri) + operasyon ekrani "en acil aktif kayitlar".
+-- Olculen kazanc (SLA sorgusu): Seq Scan+Sort -> Index Only Scan (Heap Fetches: 0),
+--   cost 304.95 -> 5.67, buffers 140 -> 3, exec 0.973ms -> 0.047ms.
+-- Maliyet: 280 kB (en buyuk index) ve her INSERT/UPDATE'te guncellenir.
 DROP INDEX IF EXISTS ix_tickets_sla_covering;
 CREATE INDEX ix_tickets_sla_covering
 ON service_tickets ("SlaDeadline")
 INCLUDE ("TicketNumber", "Status", "Priority", "CompletedAt");
 
--- ---------- Oneri 3: Covering partial index — teknisyen performansi ----------
+-- ---------- Oneri 2: Covering partial index — teknisyen performansi ----------
 -- Hedef: Sorgu 4.
--- INCLUDE("AssignedAt") kritik: bu kolon olmadan planlayici index'i yok sayiyor,
--- cunku sorgu CompletedAt - AssignedAt hesapliyor ve heap'e gitmek zorunda kaliyor.
+-- INCLUDE("AssignedAt") kritik: bu kolon olmadan planlayici index'i tamamen yok sayiyor,
+-- cunku sorgu CompletedAt - AssignedAt hesapliyor ve her satir icin heap'e gitmek zorunda.
 -- Olculen kazanc: Seq Scan+HashAggregate -> Index Only Scan+GroupAggregate,
--- cost 203.05 -> 88.55, buffers 141 -> 13.
+--   cost 201.21 -> 86.87, buffers 140 -> 13.
 DROP INDEX IF EXISTS ix_tickets_tech_completed;
 CREATE INDEX ix_tickets_tech_completed
 ON service_tickets ("AssignedTechnicianId", "CompletedAt")
 INCLUDE ("AssignedAt")
 WHERE "CompletedAt" IS NOT NULL AND "AssignedAt" IS NOT NULL;
 
+-- Reddedilen aday temizligi (onceki calistirmalardan kalmis olabilir)
+DROP INDEX IF EXISTS ix_tickets_active;
+
 -- Index Only Scan icin gorunurluk haritasinin guncel olmasi sart:
 VACUUM ANALYZE service_tickets;
 
 -- ---------- Dogrulama ----------
-SELECT indexname, pg_size_pretty(pg_relation_size(indexname::regclass)) AS boyut
+SELECT indexname, pg_size_pretty(pg_relation_size(quote_ident(indexname)::regclass)) AS boyut
 FROM pg_indexes
 WHERE tablename = 'service_tickets'
-ORDER BY pg_relation_size(indexname::regclass) DESC;
+ORDER BY pg_relation_size(quote_ident(indexname)::regclass) DESC;

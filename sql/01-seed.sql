@@ -15,6 +15,14 @@
 
 BEGIN;
 
+-- Tekrarlanabilirlik: sabit tohum ile random() ayni diziyi uretir.
+-- Boylece 03-indexes.md icindeki olcum sayilari (satir sayilari, secicilik
+-- oranlari) bu script her calistirildiginda yeniden uretilebilir.
+-- NOT: gen_random_uuid() ayri bir RNG kaynagi kullanir; Id degerleri her
+-- calistirmada farkli olur, ancak dagilimlar (durum, oncelik, teknisyen yuku)
+-- ayni kalir.
+SELECT setseed(0.42);
+
 TRUNCATE TABLE ticket_status_histories, comments, attachments,
                service_tickets, customers, technicians CASCADE;
 
@@ -66,42 +74,56 @@ CREATE TEMP TABLE seed AS
 WITH b AS (
   SELECT i,
     gen_random_uuid() AS id,
-    NOW() - (random()*180)::int * interval '1 day'
-          - (random()*86400)::int * interval '1 second' AS raw_created,
     floor(random()*4)::int AS priority,           -- 0..3
     random() AS s_pick,
     1 + floor(power(random(),2.2)*14)::int AS final_rn,
     random() < 0.15 AS has_change,                -- %15 teknisyen degisikligi
-    (random()*random()*24)::numeric  AS d1_h,     -- atama gecikmesi (saat)
-    (random()*random()*36)::numeric  AS d2_h,     -- ise baslama gecikmesi
-    (2 + random()*random()*90)::numeric AS d3_h,  -- is suresi (SLA ihlalleri dogal olarak buradan cikar)
-    (random()*48)::numeric AS d4_h,               -- onay gecikmesi
-    (random()*24)::numeric AS d5_h                -- kapanis gecikmesi
+    random() AS r1, random() AS r2, random() AS r3,
+    random() AS r4, random() AS r5, random() AS r_age,
+    1 + floor(random()*200)::int AS cust_rn
   FROM generate_series(1,4000) i
 ), b2 AS (
   SELECT b.*,
     CASE WHEN s_pick<0.18 THEN 0 WHEN s_pick<0.37 THEN 1 WHEN s_pick<0.56 THEN 2
          WHEN s_pick<0.73 THEN 3 WHEN s_pick<0.86 THEN 4 ELSE 5 END AS status,
     CASE priority WHEN 3 THEN 4 WHEN 2 THEN 8 WHEN 1 THEN 24 ELSE 72 END AS sla_h,
-    1 + floor(random()*200)::int AS cust_rn,
     LEAST(final_rn, 14) AS f_rn
   FROM b
 ), b3 AS (
   SELECT b2.*,
     CASE WHEN has_change AND status>=1 THEN (f_rn % 14) + 1 ELSE f_rn END AS init_rn,
-    -- Ilerlemis kayitlarin zaman zinciri (maks ~9 gun) gelecege tasmasin:
-    CASE WHEN status = 0 THEN raw_created
-         ELSE LEAST(raw_created, NOW() - interval '10 days') END AS created_at
+    -- Gecikmeler SLA suresine ORANTILI uretiliyor: kritik ariza 4 saatlik SLA ile
+    -- sabit 2-90 saatlik is suresine tabi tutulursa ihlal matematiksel olarak
+    -- kacinilmaz olur (ilk denemede ihlal orani %99.8 cikti). Gercekte kritik
+    -- islere daha hizli mudahale edilir; oran bu iliskiyi modelliyor.
+    -- r*r dagilimi: cogu kayit hizli ilerler, azinlik gecikir (uzun kuyruk).
+    (r1*r1 * sla_h * 0.5)::numeric        AS d1_h,   -- atama gecikmesi
+    (r2*r2 * sla_h * 0.4)::numeric        AS d2_h,   -- ise baslama gecikmesi
+    (0.5 + r3*r3 * sla_h * 1.2)::numeric  AS d3_h,   -- is suresi
+    (r4 * sla_h * 0.8)::numeric           AS d4_h,   -- onay gecikmesi
+    (r5 * sla_h * 0.4)::numeric           AS d5_h    -- kapanis gecikmesi
   FROM b2
+), b4 AS (
+  SELECT b3.*,
+    -- Kaydin yasi durumuna gore belirleniyor: 4 aydir "New" bekleyen kritik
+    -- ariza gercekci degil. Acik kayitlar (0,1,2) SLA'ya orantili taze;
+    -- kapanmis kayitlar (3,4,5) son 6 aya yayilabilir.
+    CASE
+      WHEN status = 0 THEN NOW() - (r_age * sla_h * 1.5) * interval '1 hour'
+      WHEN status = 1 THEN NOW() - (r_age * sla_h * 1.8) * interval '1 hour'
+      WHEN status = 2 THEN NOW() - (r_age * sla_h * 2.2) * interval '1 hour'
+      ELSE NOW() - (12 + r_age * 168) * interval '1 day'
+    END AS created_at
+  FROM b3
 )
-SELECT b3.*,
+SELECT b4.*,
   'TS-'||to_char(created_at,'YYYYMMDD')||'-'||lpad(i::text,6,'0') AS ticket_no,
   created_at + d1_h                     * interval '1 hour' AS t_assign,
   created_at + (d1_h+d2_h)              * interval '1 hour' AS t_prog,
   created_at + (d1_h+d2_h+d3_h)         * interval '1 hour' AS t_comp,
   created_at + (d1_h+d2_h+d3_h+d4_h)    * interval '1 hour' AS t_appr,
   created_at + (d1_h+d2_h+d3_h+d4_h+d5_h)* interval '1 hour' AS t_close
-FROM b3;
+FROM b4;
 
 -- ---------- 5) service_tickets ----------
 INSERT INTO service_tickets
@@ -212,3 +234,5 @@ UNION ALL SELECT 'attachments', COUNT(*) FROM attachments;
 SELECT "Status", COUNT(*) AS adet,
        ROUND(100.0*COUNT(*)/SUM(COUNT(*)) OVER (),1) AS yuzde
 FROM service_tickets GROUP BY "Status" ORDER BY "Status";
+
+
