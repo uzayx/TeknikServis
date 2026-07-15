@@ -36,6 +36,22 @@ function Expect($label, $result, $status, $errorCode) {
     Ok $label
 }
 
+# API'nin hazir olmasini bekle: "docker compose up" container'i baslatir ama
+# uygulama icinde birkac saniye sonra ayaga kalkar. Bu bekleme olmadan ilk
+# istekler baglanti hatasi alir ve tum senaryo cokerdi.
+Write-Host "API bekleniyor..." -NoNewline
+$ready = $false
+for ($i = 0; $i -lt 30; $i++) {
+    try {
+        Invoke-RestMethod -Uri "$base/health/db" -TimeoutSec 2 | Out-Null
+        $ready = $true; break
+    } catch { Start-Sleep -Seconds 1; Write-Host "." -NoNewline }
+}
+if (-not $ready) {
+    Write-Host "`nHATA: API $base adresinde yanit vermiyor." -ForegroundColor Red
+    exit 1
+}
+Write-Host " hazir." -ForegroundColor Green
 # ============ HAZIRLIK ============
 Head "HAZIRLIK: Test verisi"
 
@@ -215,6 +231,33 @@ $r = (Call GET "/api/tickets?page=0&pageSize=5000").Data
 if ($r.page -eq 1 -and $r.pageSize -eq 100) { Ok "C7: Sinir degerler duzeltildi (page 0->1, pageSize 5000->100)" }
 else { No "C7: sinir degerler duzeltilmedi -> page=$($r.page), pageSize=$($r.pageSize)" }
 
+$r = (Call GET "/api/tickets?slaViolated=true").Data
+if ($null -ne $r.totalCount) { Ok "C8: slaViolated=true -> $($r.totalCount) ihlal" }
+else { No "C8: slaViolated filtresi hatali" }
+
+$r2 = (Call GET "/api/tickets?slaViolated=false").Data
+$rAll = (Call GET "/api/tickets").Data
+if ($r.totalCount + $r2.totalCount -eq $rAll.totalCount) {
+    Ok "C9: slaViolated true+false = toplam ($($r.totalCount) + $($r2.totalCount) = $($rAll.totalCount))"
+} else { No "C9: slaViolated bolumlemesi tutmuyor" }
+
+$from = (Get-Date).ToUniversalTime().AddHours(-24).ToString("o")
+$r = (Call GET "/api/tickets?createdFrom=$from").Data
+if ($r.totalCount -gt 0 -and $r.totalCount -lt $rAll.totalCount) {
+    Ok "C10: createdFrom (son 24 saat) -> $($r.totalCount) / $($rAll.totalCount) kayit"
+} else { No "C10: createdFrom filtresi hatali -> $($r.totalCount)" }
+
+$r = (Call GET "/api/tickets?search=Yilmaz").Data
+if ($r.totalCount -gt 0) { Ok "C11: Musteri adiyla arama -> $($r.totalCount) kayit" }
+else { No "C11: musteri adi aramasi sonuc dondurmedi" }
+
+$r = (Call GET "/api/tickets?search=Demir").Data
+if ($r.totalCount -gt 0) { Ok "C12: Teknisyen adiyla arama -> $($r.totalCount) kayit" }
+else { No "C12: teknisyen adi aramasi sonuc dondurmedi" }
+
+$r = (Call GET "/api/tickets?technicianId=$($tek1.id)").Data
+if ($null -ne $r.totalCount) { Ok "C13: technicianId filtresi -> $($r.totalCount) kayit" }
+else { No "C13: technicianId filtresi hatali" }
 # ============ SENARYO D: YORUM & EK (METADATA) ============
 Head "SENARYO D: Yorum ve Ek"
 
@@ -260,4 +303,6 @@ Write-Host "============================`n" -ForegroundColor Cyan
 if ($script:fail -eq 0) {
     Write-Host "TUM SENARYOLAR BASARILI - Bolum 1 ve 2 tamamlandi." -ForegroundColor Green
 }
+
+
 

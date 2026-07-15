@@ -89,6 +89,53 @@ C) sadece covering, D) ikisi birden.
 **Ders:** A/B ölçümünde tek değişkeni izole etmek şart. "Önce" durumunun gerçekten önce
 olduğunu plan çıktısından doğrula — aksi halde ölçtüğün şey senin sandığın şey değildir.
 
+### V10 — Expo SDK sürüm uyarısının hafife alınması
+AI, Expo projesini kurarken "Latest (SDK 57)" seçeneğini önerdi; listede açıkça duran
+"For learning with Expo Go (SDK 54)" satırını bilgi sanıp geçti. Play Store'daki Expo Go
+henüz SDK 57'yi desteklemiyordu, uygulama "Project is incompatible" hatası verdi.
+Proje SDK 54 ile yeniden kuruldu, kaynak dosyalar (7 dosya) aynen taşındı — iskelet değişti,
+kod değişmedi.
+**Ders:** Bir araç, seçeneğin yanına neden açıklama yazıyorsa o açıklama bilgi değil uyarıdır.
+
+### V11 — PowerShell ↔ JavaScript kaçış karakteri çakışması
+AI, mevcut bir JS dosyasına satır eklemek için PowerShell `$str.Replace()` kullandı ve
+değiştirme metnini **çift tırnak** içine aldı. PowerShell çift tırnaklı string'de backtick'i
+kaçış karakteri olarak yorumladığı için JavaScript template literal'ları (`` `...${id}...` ``)
+silindi; dosya `Invalid regular expression flag` hatasıyla derlenmedi.
+**Çözüm:** Dosyayı tek tırnaklı here-string (`@'...'@`) ile bütün olarak yeniden yazmak —
+orada backtick literal kalır.
+**Ders:** İki dilin kaçış kuralları çakıştığında (PowerShell ↔ JS), enterpolasyonsuz aktarım
+tek güvenli yol. "Küçük bir ekleme" için parçalı düzenleme, dosyayı baştan yazmaktan riskli.
+
+### V12 — Türkçe "I" problemi: kültüre bağımlı ToLower() ⭐
+Aramaya müşteri/teknisyen adı eklendikten sonra `"AHMET YILMAZ"` sorgusu **0 sonuç** döndürdü.
+**Kök neden:** Geliştirme makinesi Türkçe yerel ayarlarda; .NET'te `ToLower()` işletim
+sisteminin kültürünü kullanır. Türkçede büyük `I` küçülünce **noktasız `ı`** olur:
+`"YILMAZ".ToLower()` → Türkçe kültürde `"yılmaz"`, Invariant'ta `"yilmaz"`. Veritabanındaki
+`"Yilmaz"` (noktalı i) ile eşleşme çöktü.
+**Önemli nüans:** Bug'ı InMemory test yakaladı çünkü o sağlayıcı sorguyu istemci tarafında
+gerçek .NET string metotlarıyla çalıştırır. Gerçek PostgreSQL'de Npgsql `ToLower()`'ı SQL'in
+`LOWER()` fonksiyonuna çevirir ve veritabanı collation'ı devreye girer — yani API muhtemelen
+doğru çalışıyordu, test ortamı üretim davranışından sapıyordu.
+**Çözüm:** `ToLower()` → `ToLowerInvariant()`.
+**Ders:** Metin karşılaştıran kod, çalıştığı sunucunun yerel ayarına asla güvenmemeli.
+`Invariant` varyantları varsayılan olmalı, istisna değil. Ayrıca: test ortamının üretimden
+farklı davranabileceğini bilmek, testin verdiği sonucu doğru yorumlamak için şart.
+
+### V13 — Sonradan fark edilen kapsam boşluğu (envanter disiplini)
+Bölüm 3 bittikten sonra "başka eksik var mı?" diye envanter çıkarınca, `Comment` ve
+`Attachment` tablolarının şemada olduğu ama **hiçbir endpoint'inin bulunmadığı** görüldü.
+Case Bölüm 1'de bu tabloları açıkça istiyordu; tasarlanmış ama dış dünyaya açılmamışlardı.
+Eklendi (yorum + ek metadata endpoint'leri, 8 birim testi, 7 smoke test adımı).
+**Ders:** "Bölüm bitti" demeden önce case'in maddelerini tek tek işaretlemek gerekiyor;
+kod çalışıyor olması, istenen her şeyin yapıldığı anlamına gelmiyor.
+
+### V14 — Testi düzeltirken üretimi kırmak ⭐
+V12'deki Türkçe I problemini çözmek için ToLower() -> ToLowerInvariant() yaptım. Toplu -replace kullandım ve kör davrandı: hem arama terimini (istemci tarafı — doğru) hem de entity property'lerini (SQL'e çevrilmesi gereken — yanlış) değiştirdi. EF Core ToLowerInvariant()'ı SQL'e çeviremez; arama gerçek veritabanında tamamen çöktü.
+**Kritik nokta:** 53 birim testi yeşil kaldı. InMemory sağlayıcı sorguyu istemci tarafında gerçek .NET metotlarıyla çalıştırırsa regresyonu göremezdi. Hatayı ancak gerçek Postgres'e karşı koşan uçtan uca smoke test yakaladı (search=kombi daha önce geçen bir kontroldü, kaldı).
+**Doğru çözüm:** Arama terimi istemci tarafında ToLowerInvariant() ile normalize edilir; entity property'lerinde ToLower() kalır, EF onu SQL LOWER()'ına çevirir.
+**Dersler:** (1) Toplu metin değiştirme, bağlamı olmayan bir araçtır — aynı metot çağrısı iki farklı yerde iki farklı anlam taşıyabilir. (2) Birim testlerinin yeşil olması "çalışıyor" demek değil; test sahtesi (InMemory) üretim davranışını taklit etmiyorsa yanlış güven verir. (3) Gerçek veritabanına karşı koşan bir entegrasyon testi, birim test kalabalığının kaçırdığını yakalar — bu projede tam olarak bu oldu.
+
 ---
 
 ## 2. En Faydalı Promptlar (Bölüm 6 — 10 tane seçilecek)
@@ -129,6 +176,7 @@ Gerçek projede yaşadıklarımızdan:
 - Gereksiz `BeginTransaction` (tek `SaveChanges` zaten transaction)
 - `switch` ifadesinde base tipi türetilmişten önce yazmak (V8)
 - Covering index'te gerekli kolonu unutmak (V6)
+- Kulture bagimli ToLower/ToUpper (V12) -> ToLowerInvariant / StringComparison.OrdinalIgnoreCase
 
 Klasik AI hataları (eklenecek):
 - N+1 sorgu (`Include` yerine döngüde sorgu)
@@ -150,4 +198,6 @@ Klasik AI hataları (eklenecek):
 - [ ] Bölüm 8: Production incident
 - [ ] README derle
 - [ ] AI Usage Report derle
+
+
 

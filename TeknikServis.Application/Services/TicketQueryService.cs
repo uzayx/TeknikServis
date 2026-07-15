@@ -47,12 +47,41 @@ public class TicketQueryService : ITicketQueryService
         if (p.TechnicianId.HasValue)
             query = query.Where(t => t.AssignedTechnicianId == p.TechnicianId.Value);
 
+        if (p.CreatedFrom.HasValue)
+            query = query.Where(t => t.CreatedAt >= p.CreatedFrom.Value);
+
+        // SLA ihlali: tamamlanmis kayitlarda tamamlanma ani, tamamlanmamislarda
+        // su an SLA bitisiyle karsilastirilir. Ternary, SQL'de CASE'e cevrilir.
+        if (p.SlaViolated.HasValue)
+        {
+            var now = DateTime.UtcNow;
+            query = p.SlaViolated.Value
+                ? query.Where(t => t.CompletedAt != null
+                    ? t.CompletedAt > t.SlaDeadline
+                    : now > t.SlaDeadline)
+                : query.Where(t => t.CompletedAt != null
+                    ? t.CompletedAt <= t.SlaDeadline
+                    : now <= t.SlaDeadline);
+        }
+
+        // Serbest arama: kayit numarasi, baslik, musteri ve teknisyen adi.
+        // Not: Contains -> ILIKE '%...%' cevrilir ve index kullanamaz (tam tarama).
+        // Bu hacimde kabul edilebilir; uretimde pg_trgm + GIN gerekir (bkz. 03-indexes.md).
         if (!string.IsNullOrWhiteSpace(p.Search))
         {
-            var s = p.Search.Trim().ToLower();
+            // Arama terimi ISTEMCI tarafinda normalize edilir: ToLowerInvariant,
+            // kulture bagimli "Turkce I" problemini engeller (buyuk I -> i, ı degil).
+            var s = p.Search.Trim().ToLowerInvariant();
+
+            // Entity ozelliklerinde ToLower() kullanilir: EF Core bunu SQL'in LOWER()
+            // fonksiyonuna cevirir ve veritabani collation'i devreye girer.
+            // ToLowerInvariant() SQL'e CEVRILEMEZ -> calisma aninda exception atar.
             query = query.Where(t =>
                 t.TicketNumber.ToLower().Contains(s) ||
-                t.Title.ToLower().Contains(s));
+                t.Title.ToLower().Contains(s) ||
+                (t.Customer.FirstName + " " + t.Customer.LastName).ToLower().Contains(s) ||
+                (t.AssignedTechnician != null &&
+                 (t.AssignedTechnician.FirstName + " " + t.AssignedTechnician.LastName).ToLower().Contains(s)));
         }
 
         query = ApplySorting(query, p);
@@ -97,4 +126,5 @@ public class TicketQueryService : ITicketQueryService
         };
     }
 }
+
 

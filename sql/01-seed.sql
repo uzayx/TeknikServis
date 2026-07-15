@@ -133,8 +133,7 @@ SELECT s.id, s.ticket_no, c.cust_id,
   CASE WHEN s.status>=1 THEN ft.tech_id END,
   (ARRAY['Kombi isitmiyor','Klima sogutmuyor','Priz calismiyor','Musluk damlatiyor',
          'Buzdolabi ses yapiyor','Kombi ariza kodu veriyor','Klima su akitiyor',
-         'Sigorta atiyor','Camasir makinesi calismiyor','Petek sogugu'])[1+(s.i%10)]
-    || ' - ' || s.ticket_no,
+         'Sigorta atiyor','Camasir makinesi calismiyor','Petek sogugu'])[1+(s.i%10)],
   'Musteri bildirimi: cihazda ariza tespit edildi, servis talebi olusturuldu. Kayit no: '||s.ticket_no,
   s.status, s.priority,
   s.created_at + s.sla_h * interval '1 hour',
@@ -234,5 +233,7 @@ UNION ALL SELECT 'attachments', COUNT(*) FROM attachments;
 SELECT "Status", COUNT(*) AS adet,
        ROUND(100.0*COUNT(*)/SUM(COUNT(*)) OVER (),1) AS yuzde
 FROM service_tickets GROUP BY "Status" ORDER BY "Status";
+
+
 
 

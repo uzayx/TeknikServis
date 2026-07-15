@@ -31,7 +31,12 @@ public class TicketsController : ControllerBase
     /// Ariza kayitlarini sayfalanmis olarak listeler.
     /// </summary>
     /// <remarks>
-    /// Filtreler: status, priority, customerId, technicianId, search (ticketNumber/title icinde arar).
+    /// Filtreler:
+    /// status, priority, customerId, technicianId,
+    /// slaViolated (true = ihlal edenler, false = uyanlar),
+    /// createdFrom (bu tarihten sonrakiler, UTC),
+    /// search (kayit numarasi, baslik, musteri adi veya teknisyen adi icinde arar).
+    ///
     /// Siralama: sortBy = createdAt | priority | status | slaDeadline | ticketNumber, sortDir = asc | desc.
     /// Sayfalama: page (min 1), pageSize (min 1, max 100). Sinir disi degerler sessizce duzeltilir.
     /// </remarks>
@@ -222,3 +227,4 @@ public class TicketsController : ControllerBase
         return CreatedAtAction(nameof(GetAttachments), new { id }, attachment);
     }
 }
+
