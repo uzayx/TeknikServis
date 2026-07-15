@@ -1,10 +1,23 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Text.Json.Serialization;
+using FluentValidation;
+using FluentValidation.AspNetCore;
+using Microsoft.EntityFrameworkCore;
+using TeknikServis.Api.Middleware;
+using TeknikServis.Application;
 using TeknikServis.Infrastructure;
 using TeknikServis.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssembly(typeof(TeknikServis.Application.DependencyInjection).Assembly);
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -12,10 +25,11 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Teknik Servis Yonetim API",
         Version = "v1",
-        Description = "Teknik servis arizakaydi yonetim sistemi REST API"
+        Description = "Teknik servis ariza kaydi yonetim sistemi REST API"
     });
 });
 
+builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddCors(options =>
@@ -27,6 +41,8 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+app.UseMiddleware<GlobalExceptionMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
