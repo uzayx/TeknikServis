@@ -1,5 +1,4 @@
-﻿import { Picker } from '@react-native-picker/picker';
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, FlatList, Modal, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
@@ -38,6 +37,15 @@ export default function TicketListScreen({ navigation }) {
   // Filtre panelindeki secicileri beslemek icin
   const [customers, setCustomers] = useState([]);
   const [technicians, setTechnicians] = useState([]);
+
+  // Panel modu: 200+ musteriyi dropdown'da kaydirmak yerine panelin icerigi
+  // aramali bir listeye donusuyor. Ic ice Modal acmak yerine tek panelin
+  // icerigini degistiriyoruz -- React Native'de nested modal kirilgandir.
+  // Panel modu: 200+ musteriyi dropdown'da kaydirmak yerine panelin icerigi
+  // aramali bir listeye donusuyor. Ic ice Modal acmak yerine tek panelin
+  // icerigini degistiriyoruz -- React Native'de nested modal kirilgandir.
+  const [sheetMode, setSheetMode] = useState('filters'); // 'filters' | 'customer' | 'technician'
+  const [pickerSearch, setPickerSearch] = useState('');
 
   useEffect(() => {
     api.getCustomers().then(setCustomers).catch(() => {});
@@ -88,7 +96,29 @@ export default function TicketListScreen({ navigation }) {
     return unsub;
   }, [navigation, load]);
 
-  const openFilters = () => { setDraft(filters); setFilterOpen(true); };
+  const openFilters = () => {
+    setDraft(filters);
+    setSheetMode('filters');
+    setPickerSearch('');
+    setFilterOpen(true);
+  };
+
+  const openPicker = (mode) => { setPickerSearch(''); setSheetMode(mode); };
+  const backToFilters = () => { setPickerSearch(''); setSheetMode('filters'); };
+
+  // Isim veya telefon ile filtreleme; secili kaydin adini butonda gostermek icin
+  const selectedCustomer = customers.find((c) => c.id === draft.customerId);
+  const selectedTechnician = technicians.find((t) => t.id === draft.technicianId);
+
+  const pickerItems = (() => {
+    const q = pickerSearch.trim().toLocaleLowerCase('tr');
+    const source = sheetMode === 'customer' ? customers : technicians;
+    if (!q) return source;
+    return source.filter((x) =>
+      x.fullName.toLocaleLowerCase('tr').includes(q) ||
+      (x.phone && x.phone.includes(q)) ||
+      (x.specialty && x.specialty.toLocaleLowerCase('tr').includes(q)));
+  })();
   const applyFilters = () => { setFilters(draft); setFilterOpen(false); };
 
   const renderItem = ({ item }) => {
@@ -188,6 +218,66 @@ export default function TicketListScreen({ navigation }) {
         <TouchableOpacity style={styles.sheetBg} activeOpacity={1} onPress={() => setFilterOpen(false)}>
           <TouchableOpacity style={styles.sheet} activeOpacity={1}>
             <View style={styles.sheetHandle} />
+
+            {sheetMode !== 'filters' ? (
+              <>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={backToFilters}>
+                    <Text style={styles.backLink}>&lt; Geri</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.sheetTitle}>
+                    {sheetMode === 'customer' ? 'Musteri Sec' : 'Teknisyen Sec'}
+                  </Text>
+                  <View style={{ width: 50 }} />
+                </View>
+
+                <TextInput
+                  style={styles.pickerSearch}
+                  placeholder={sheetMode === 'customer'
+                    ? 'Isim veya telefon ara...'
+                    : 'Isim veya uzmanlik ara...'}
+                  value={pickerSearch}
+                  onChangeText={setPickerSearch}
+                  autoFocus
+                />
+                <Text style={styles.hint}>
+                  {pickerItems.length} / {(sheetMode === 'customer' ? customers : technicians).length} kayit
+                </Text>
+
+                <FlatList
+                  style={{ maxHeight: 340 }}
+                  data={[{ id: null, fullName: sheetMode === 'customer' ? 'Tum musteriler' : 'Tum teknisyenler' }, ...pickerItems]}
+                  keyExtractor={(x) => x.id ?? 'all'}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => {
+                    const current = sheetMode === 'customer' ? draft.customerId : draft.technicianId;
+                    const active = current === item.id;
+                    return (
+                      <TouchableOpacity
+                        style={[styles.pickerRow, active && styles.pickerRowActive]}
+                        onPress={() => {
+                          setDraft(sheetMode === 'customer'
+                            ? { ...draft, customerId: item.id }
+                            : { ...draft, technicianId: item.id });
+                          backToFilters();
+                        }}
+                      >
+                        <Text style={active ? styles.pickerRowTextActive : styles.pickerRowText}>
+                          {item.fullName}
+                        </Text>
+                        {item.id && (
+                          <Text style={active ? styles.pickerRowSubActive : styles.pickerRowSub}>
+                            {sheetMode === 'customer' ? item.phone : (item.specialty ?? '')}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  }}
+                  ListEmptyComponent={<Text style={styles.empty}>Sonuc yok.</Text>}
+                />
+              </>
+            ) : (
+            <>
             <Text style={styles.sheetTitle}>Filtreler</Text>
 
             <ScrollView>
@@ -260,34 +350,20 @@ export default function TicketListScreen({ navigation }) {
               </View>
 
               <Text style={styles.groupLabel}>Musteri</Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={draft.customerId}
-                  onValueChange={(v) => setDraft({ ...draft, customerId: v })}
-                >
-                  <Picker.Item label="Tum musteriler" value={null} />
-                  {customers.map((c) => (
-                    <Picker.Item key={c.id} label={`${c.fullName} (${c.phone})`} value={c.id} />
-                  ))}
-                </Picker>
-              </View>
+              <TouchableOpacity style={styles.selectRow} onPress={() => openPicker('customer')}>
+                <Text style={selectedCustomer ? styles.selectValue : styles.selectPlaceholder}>
+                  {selectedCustomer ? selectedCustomer.fullName : 'Tum musteriler'}
+                </Text>
+                <Text style={styles.selectArrow}>ara &gt;</Text>
+              </TouchableOpacity>
 
               <Text style={styles.groupLabel}>Teknisyen</Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={draft.technicianId}
-                  onValueChange={(v) => setDraft({ ...draft, technicianId: v })}
-                >
-                  <Picker.Item label="Tum teknisyenler" value={null} />
-                  {technicians.map((t) => (
-                    <Picker.Item
-                      key={t.id}
-                      label={`${t.fullName}${t.specialty ? ' - ' + t.specialty : ''}`}
-                      value={t.id}
-                    />
-                  ))}
-                </Picker>
-              </View>
+              <TouchableOpacity style={styles.selectRow} onPress={() => openPicker('technician')}>
+                <Text style={selectedTechnician ? styles.selectValue : styles.selectPlaceholder}>
+                  {selectedTechnician ? selectedTechnician.fullName : 'Tum teknisyenler'}
+                </Text>
+                <Text style={styles.selectArrow}>ara &gt;</Text>
+              </TouchableOpacity>
             </ScrollView>
 
             <View style={styles.sheetActions}>
@@ -298,6 +374,10 @@ export default function TicketListScreen({ navigation }) {
                 <Text style={styles.sheetApplyText}>Uygula</Text>
               </TouchableOpacity>
             </View>
+            </>
+            )}
+            </>
+            )}
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -406,4 +486,31 @@ const styles = StyleSheet.create({
   sortText: { color: '#374151', fontSize: 15 },
   sortTextActive: { color: '#fff', fontSize: 15, fontWeight: '600' },
   check: { color: '#9ca3af', fontSize: 12 },
+  selectRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb',
+    paddingHorizontal: 14, paddingVertical: 14,
+  },
+  selectValue: { color: '#111827', fontSize: 14, fontWeight: '600', flex: 1 },
+  selectPlaceholder: { color: '#9ca3af', fontSize: 14, flex: 1 },
+  selectArrow: { color: '#2563eb', fontSize: 12, fontWeight: '600' },
+  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  backLink: { color: '#2563eb', fontSize: 14, fontWeight: '600', width: 50 },
+  pickerSearch: {
+    backgroundColor: '#f9fafb', borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb',
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginTop: 12,
+  },
+  hint: { fontSize: 11, color: '#9ca3af', marginTop: 6, marginBottom: 4 },
+  pickerRow: {
+    paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8, marginTop: 4,
+    borderWidth: 1, borderColor: '#e5e7eb',
+  },
+  pickerRowActive: { backgroundColor: '#111827', borderColor: '#111827' },
+  pickerRowText: { color: '#111827', fontSize: 14, fontWeight: '500' },
+  pickerRowTextActive: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  pickerRowSub: { color: '#6b7280', fontSize: 12, marginTop: 2 },
+  pickerRowSubActive: { color: '#d1d5db', fontSize: 12, marginTop: 2 },
 });
+
+
+
