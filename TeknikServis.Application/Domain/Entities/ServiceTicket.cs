@@ -25,7 +25,7 @@ public class ServiceTicket
     public DateTime? CompletedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
 
-    public uint RowVersion { get; set; }
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 
     public ICollection<TicketStatusHistory> StatusHistories { get; set; } = new List<TicketStatusHistory>();
     public ICollection<Comment> Comments { get; set; } = new List<Comment>();

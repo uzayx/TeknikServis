@@ -21,10 +21,8 @@ public class ServiceTicketConfiguration : IEntityTypeConfiguration<ServiceTicket
         builder.Property(t => t.SlaDeadline).IsRequired();
         builder.Property(t => t.CreatedAt).IsRequired();
 
-        builder.Property(t => t.RowVersion)
-            .HasColumnName("xmin")
-            .HasColumnType("xid")
-            .ValueGeneratedOnAddOrUpdate()
+        builder.Property(t => t.ConcurrencyStamp)
+            .IsRequired()
             .IsConcurrencyToken();
 
         builder.HasIndex(t => t.TicketNumber).IsUnique();
