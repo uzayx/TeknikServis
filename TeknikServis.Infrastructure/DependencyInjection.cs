@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TeknikServis.Application.Interfaces;
 using TeknikServis.Infrastructure.Persistence;
 
 namespace TeknikServis.Infrastructure;
@@ -25,6 +26,8 @@ public static class DependencyInjection
                     errorCodesToAdd: null);
             });
         });
+
+        services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         return services;
     }

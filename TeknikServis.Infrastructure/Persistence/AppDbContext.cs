@@ -1,9 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TeknikServis.Application.Domain.Entities;
+using TeknikServis.Application.Interfaces;
 
 namespace TeknikServis.Infrastructure.Persistence;
 
-public class AppDbContext : DbContext
+public class AppDbContext : DbContext, IAppDbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
