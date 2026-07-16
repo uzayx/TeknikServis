@@ -20,7 +20,7 @@ public class TechnicianConfiguration : IEntityTypeConfiguration<Technician>
         builder.Property(t => t.CreatedAt).IsRequired();
 
         builder.HasIndex(t => t.Email).IsUnique();
-        builder.HasIndex(t => t.IsActive);
-        builder.HasIndex(t => t.LastName);
     }
 }
+
+

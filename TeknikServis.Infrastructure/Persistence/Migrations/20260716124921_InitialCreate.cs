@@ -181,11 +181,6 @@ namespace TeknikServis.Infrastructure.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_customers_LastName",
-                table: "customers",
-                column: "LastName");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_service_tickets_AssignedTechnicianId",
                 table: "service_tickets",
                 column: "AssignedTechnicianId");
@@ -199,11 +194,6 @@ namespace TeknikServis.Infrastructure.Persistence.Migrations
                 name: "IX_service_tickets_CustomerId",
                 table: "service_tickets",
                 column: "CustomerId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_service_tickets_Status",
-                table: "service_tickets",
-                column: "Status");
 
             migrationBuilder.CreateIndex(
                 name: "IX_service_tickets_Status_AssignedTechnicianId",
@@ -221,16 +211,6 @@ namespace TeknikServis.Infrastructure.Persistence.Migrations
                 table: "technicians",
                 column: "Email",
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_technicians_IsActive",
-                table: "technicians",
-                column: "IsActive");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_technicians_LastName",
-                table: "technicians",
-                column: "LastName");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ticket_status_histories_NewTechnicianId",

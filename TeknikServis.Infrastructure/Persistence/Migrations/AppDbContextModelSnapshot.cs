@@ -134,8 +134,6 @@ namespace TeknikServis.Infrastructure.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("LastName");
-
                     b.ToTable("customers", (string)null);
                 });
 
@@ -195,8 +193,6 @@ namespace TeknikServis.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.HasIndex("Status");
-
                     b.HasIndex("TicketNumber")
                         .IsUnique();
 
@@ -247,10 +243,6 @@ namespace TeknikServis.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique();
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("LastName");
 
                     b.ToTable("technicians", (string)null);
                 });

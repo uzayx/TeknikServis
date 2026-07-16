@@ -12,7 +12,7 @@ using TeknikServis.Infrastructure.Persistence;
 namespace TeknikServis.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260715102132_InitialCreate")]
+    [Migration("20260716124921_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -137,8 +137,6 @@ namespace TeknikServis.Infrastructure.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("LastName");
-
                     b.ToTable("customers", (string)null);
                 });
 
@@ -198,8 +196,6 @@ namespace TeknikServis.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.HasIndex("Status");
-
                     b.HasIndex("TicketNumber")
                         .IsUnique();
 
@@ -250,10 +246,6 @@ namespace TeknikServis.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique();
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("LastName");
 
                     b.ToTable("technicians", (string)null);
                 });

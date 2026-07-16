@@ -376,8 +376,6 @@ export default function TicketListScreen({ navigation }) {
             </View>
             </>
             )}
-            </>
-            )}
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -511,6 +509,7 @@ const styles = StyleSheet.create({
   pickerRowSub: { color: '#6b7280', fontSize: 12, marginTop: 2 },
   pickerRowSubActive: { color: '#d1d5db', fontSize: 12, marginTop: 2 },
 });
+
 
 
 

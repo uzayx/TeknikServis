@@ -44,9 +44,6 @@ public class TicketService : ITicketService
 
         _db.ServiceTickets.Add(ticket);
 
-        // Gecmis kayitlari navigation koleksiyonu yerine dogrudan DbSet uzerinden
-        // ekleniyor. Sebep: PK'si elle atanmis yeni bir nesne navigation'a eklendiginde
-        // EF, dolu key'i gorup kaydi Modified sayiyor ve INSERT yerine UPDATE uretiyor.
         _db.TicketStatusHistories.Add(new TicketStatusHistory
         {
             Id = Guid.NewGuid(),

@@ -40,7 +40,8 @@
         condition: service_healthy
     networks:
       - teknikservis-network
-
+  # Opsiyonel gorsel arac. Sunucu kaydi elle eklenir (bkz. README):
+  # Host=postgres, Port=5432. Tum DB islemleri psql ile de yapilabiliyor.
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: teknikservis-pgadmin
@@ -49,6 +50,7 @@
       PGADMIN_DEFAULT_EMAIL: admin@teknikservis.com
       PGADMIN_DEFAULT_PASSWORD: admin123
       PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:
       - "5050:80"
     depends_on:
@@ -63,3 +65,4 @@ volumes:
 networks:
   teknikservis-network:
     driver: bridge
+

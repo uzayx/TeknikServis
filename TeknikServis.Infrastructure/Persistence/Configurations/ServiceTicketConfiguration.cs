@@ -22,7 +22,8 @@ public class ServiceTicketConfiguration : IEntityTypeConfiguration<ServiceTicket
         builder.Property(t => t.CreatedAt).IsRequired();
 
         builder.HasIndex(t => t.TicketNumber).IsUnique();
-        builder.HasIndex(t => t.Status);
+        // KALDIRILDI: Tekil Status index'i -- asagidaki composite'in onegi.
+        // Olcum: composite idx_scan = 3, tekil = 0. Planlayici hep composite'i seciyor.
         builder.HasIndex(t => t.CreatedAt);
         builder.HasIndex(t => new { t.Status, t.AssignedTechnicianId });
 
@@ -38,3 +39,5 @@ public class ServiceTicketConfiguration : IEntityTypeConfiguration<ServiceTicket
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+
